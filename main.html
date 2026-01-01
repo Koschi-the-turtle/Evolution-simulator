@@ -23,7 +23,29 @@
     <canvas id="c"></canvas>
     <div id="ui"></div>
 
+    <button id="graph_button" style="
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: black;
+        color: white;
+        border: 1px solid white;
+        font-family: monospace;
+        cursor: pointer;
+    ">
+        GRAPH
+    </button>
+
+
     <script>
+        
+        let showGraph = false;
+        document.getElementById("graph_button").onclick = () => {
+            showGraph = !showGraph;
+        };
+        const popHistory = [];
+        const MAX_HISTORY = 300;
+
         const canvas = document.getElementById("c");
         const ctx = canvas.getContext("2d");
         const ui = document.getElementById("ui");
@@ -37,7 +59,7 @@
 
         // BASE PARAMETERS
         const START_POP = 50;
-        const ENERGY_FROM_SIZE = 20;
+        const ENERGY_FROM_SIZE = 18;
         const BASE_METABOLISM = 0.008;
         const MUTATION = 0.03;
 
@@ -182,9 +204,34 @@
                     }
             
             let frameCount = 0;
+            
+
+            function drawGraph() {
+                const w = 300;
+                const h = 120;
+                const x = canvas.width - w - 10;
+                const y = canvas.height - h - 10;
+
+                ctx.strokeStyle = "white";
+                ctx.strokeRect(x, y, w, h);
+
+                if (popHistory.length < 2) return;
+                const maxPop = Math.max(...popHistory);
+
+                ctx.beginPath();
+                popHistory.forEach((p, i) => {
+                    const px = x + (i/(MAX_HISTORY - 1)) * w;
+                    const py = y + h - (p/maxPop) * h;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                });
+                ctx.stroke();
+            }
 
             function step() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                popHistory.push(organisms.length);
+                if (popHistory.length > MAX_HISTORY) popHistory.shift();
                 for (const o of organisms) o.update(organisms);
                 // predation
                 frameCount++;
@@ -194,6 +241,7 @@
                 for (const o of organisms) o.draw();
                 ui.textContent = `Population: ${organisms.length}`;
                 requestAnimationFrame(step);
+                if (showGraph) drawGraph();
             }
             step();
     </script>
