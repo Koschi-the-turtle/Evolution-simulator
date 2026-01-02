@@ -16,17 +16,83 @@
                 top: 10px; 
                 left: 10px;
                 font-size: 14px;
+                padding: 6px 10px;
+                background: black;
+                border: 1px solid white;
             }
+
+            #controls {
+                position: fixed;
+                bottom: 15px;
+                left: 15px;
+                color : white;
+                font-size : 12px;
+            }
+            #controls label {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+            #controls input[type=range] {
+                -webkit-appearance: none;
+                appearance: none;
+                background: transparent;
+                cursor: pointer;
+            }
+            #controls input[type=range]::-webkit-slider-runnable-track{
+                height: 5px;
+                background: black;
+                border: 1px solid white;
+            }
+            #controls input[type=range]::-moz-range-track {
+                height:5px;
+                background: black;
+                border: 1px solid white;
+            }
+            #controls input[type=range]::-webkit-slider-thumb{
+                -webkit-appearance: none;
+                appearance: none;
+                width: 3px;
+                height: 12px;
+                background: white;
+                border-radius: 20%;
+            }
+            #controls input[type=range]::-moz-range-thumb {
+                width: 3px;
+                height: 12px;
+                background: white;
+                border-radius: 20%;
+            }
+
         </style>
     </head>
     <body>
     <canvas id="c"></canvas>
+    <div id = "controls">
+        <label>
+            Mutation
+            <input type = "range" min = "0.0001" max = "0.1" step = "0.0001" value = "0.03" id = "mut">
+        </label>
+        <label>
+            Metabolism
+            <input type = "range" min = "0.001" max = "0.1" step = "0.001" value = "0.008" id = "meta">
+        </label>
+        <label>
+            Energy Gain
+            <input type = "range" min = "1" max = "50" step = "1" value = "18" id = "energy">
+        </label>
+        <label>
+            Decay
+            <input type = "range" min = "0" max = "0.003" step = "0.00001" value = "0.001" id = "decay">
+        </label>
+    </div>
     <div id="ui"></div>
 
     <button id="graph_button" style="
         position: fixed;
         top: 10px;
-        right: 10px;
+        right: 20px;
         background: black;
         color: white;
         border: 1px solid white;
@@ -36,15 +102,26 @@
         GRAPH
     </button>
 
-
     <script>
         
+        const params = {
+            mutation: 0.03,
+            metabolism: 0.008,
+            energyGain: 18,
+            decay: 0.0001,
+        };
+
+        const mut = document.getElementById("mut");
+        const meta = document.getElementById("meta");
+        const energy = document.getElementById("energy");
+        const decay = document.getElementById("decay");
+
         let showGraph = false;
         document.getElementById("graph_button").onclick = () => {
             showGraph = !showGraph;
         };
         const popHistory = [];
-        const MAX_HISTORY = 300;
+        const MAX_HISTORY = 500;
 
         const canvas = document.getElementById("c");
         const ctx = canvas.getContext("2d");
@@ -59,9 +136,6 @@
 
         // BASE PARAMETERS
         const START_POP = 50;
-        const ENERGY_FROM_SIZE = 18;
-        const BASE_METABOLISM = 0.008;
-        const MUTATION = 0.03;
 
             // ORGANISM
             class Organism {
@@ -72,8 +146,8 @@
                         this.activity = Math.random();
                     } 
                     else if (parent) {
-                        this.size = parent.size * rand(1 - MUTATION, 1 + MUTATION);
-                        this.speed = parent.speed * rand(1 - MUTATION, 1 + MUTATION);
+                        this.size = parent.size * rand(1 - params.mutation, 1 + params.mutation);
+                        this.speed = parent.speed * rand(1 - params.mutation, 1 + params.mutation);
                         this.activity = clamp(parent.activity + rand(-0.5, 0.5), 0, 1);
                     } 
                     else {
@@ -103,13 +177,13 @@
                         }
 
                 }
-                this.size -= 0.0001 * this.size; 
+                this.size -= params.decay * this.size; 
                 this.x += this.vx * this.speed;
                 this.y += this.vy * this.speed;
 
                     wrap(this);
                     // energy
-                    this.energy -= BASE_METABOLISM * (this.size ** 1.5 + this.speed * 5);
+                    this.energy -= params.metabolism * (this.size ** 1.5 + this.speed * 5);
                     // reproduction
                     if (this.energy > this.size * 15) {
                         this.energy *= 0.7;
@@ -196,7 +270,7 @@
                             const dx = a.x - b.x;
                             const dy = a.y - b.y;
                                 if (dx*dx + dy*dy < a.size*a.size && a.size > b.size*1.2) {
-                                    a.energy += b.size * ENERGY_FROM_SIZE;
+                                    a.energy += b.size * params.energyGain;
                                     b.dead = true;
                                 }
                             }
@@ -207,10 +281,13 @@
             
 
             function drawGraph() {
-                const w = 300;
-                const h = 120;
+                const w = 500;
+                const h = 300;
                 const x = canvas.width - w - 10;
-                const y = canvas.height - h - 10;
+                const y = 20;
+
+                ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+                ctx.fillRect(x, y, w, h);
 
                 ctx.strokeStyle = "white";
                 ctx.strokeRect(x, y, w, h);
@@ -227,10 +304,23 @@
                 });
                 ctx.stroke();
             }
+            const targets = {...params};
+            mut.oninput = () => targets.mutation = +mut.value;
+            meta.oninput = () => targets.metabolism = +meta.value;
+            energy.oninput = () => targets.energyGain = +energy.value;
+            decay.oninput = () => targets.decay = +decay.value;
+
+            function updateParams() {
+                params.mutation += (targets.mutation - params.mutation) * 0.1;
+                params.metabolism += (targets.metabolism - params.metabolism) * 0.1;
+                params.energyGain += (targets.energyGain - params.energyGain) * 0.1;
+                params.decay += (targets.decay - params.decay) * 0.0001;
+            }
 
             function step() {
+                updateParams();
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                if (frameCount % 30 === 0) {
+                if (frameCount % 10 === 0) {
                     popHistory.push(organisms.length);
                     if (popHistory.length > MAX_HISTORY) popHistory.shift();
                 }
