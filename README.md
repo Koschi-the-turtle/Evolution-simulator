@@ -5,7 +5,7 @@ At the top left you'll see a real-time counter of your population, along with a 
    like averages, death counts and strongest lineage.
 At the top right, a graph button, which will show you the evolution of the population in real time as well
    as the evolution of total deaths.
-at the botton left, sliders to change different settings.
+At the botton left, sliders to change different settings.
 
 Settings:
    Mutation : How much a child can differ from its parent.
