@@ -84,7 +84,7 @@
     <div id = "controls">
         <label>
             Mutation
-            <input type = "range" min = "0.0001" max = "0.1" step = "0.0001" value = "0.03" id = "mut">
+            <input type = "range" min = "0.001" max = "0.1" step = "0.001" value = "0.03" id = "mut">
         </label>
         <label>
             Metabolism
@@ -114,10 +114,23 @@
         GRAPH
     </button>
 
+    <button id="graph_mode_button" style ="
+        position: fixed;
+        top: 10px;
+        right: 75px;
+        background: black;
+        color: white;
+        border: 1px solid white;
+        font-family: monospace;
+        cursor: pointer;
+    ">
+        POPULATION
+    </button>
+
     <div id = "time_controls" style = "
         position: fixed;
-        top: 70px;
-        right: 20px;
+        top: 10px;
+        right: 700px;
         font-family: monospace;
     ">
         <button data-scale = "1">x1</button>
@@ -130,7 +143,7 @@
         const params = {
             mutation: 0.03,
             metabolism: 0.008,
-            energyGain: 18,
+            energyGain: 19,
             decay: 0.0001,
         };
 
@@ -152,10 +165,22 @@
         let timeScale = 1;
         let uiTimer = 0;
         let graphTimer = 0;
+        let graphMode = "population";
+        const graphModeButton = document.getElementById("graph_mode_button");
+        graphModeButton.onclick = () => {
+            graphMode = graphMode === "population" ? "deaths" : "population";
+            graphModeButton.textContent = 
+            graphMode === "population" ? "POPULATION" : "DEATHS";
+        };
+        const dt = 1 / timeScale;
 
         let LINEAGE_ID =0;
         const lineageStats = new Map();
 
+        let totalDeaths = 0;
+        const deathHistory = [];
+        
+        
         let showGraph = false;
         document.getElementById("graph_button").onclick = () => {
             showGraph = !showGraph;
@@ -215,7 +240,7 @@
                     this.vy = rand(-1, 1);
                     this.dead = false;
                 }
-
+                
                 update(list) {
                     //movement
                     if (Math.random() < this.activity) {
@@ -229,13 +254,13 @@
                         }
 
                 }
-                this.size -= params.decay * this.size; 
-                this.x += this.vx * this.speed;
-                this.y += this.vy * this.speed;
+                this.size -= params.decay * this.size * dt; 
+                this.x += this.vx * this.speed * dt;
+                this.y += this.vy * this.speed * dt;
 
                     wrap(this);
                     // energy
-                    this.energy -= params.metabolism * (this.size ** 1.5 + this.speed * 5);
+                    this.energy -= params.metabolism * (this.size ** 1.5 + this.speed * 5) * dt;
                     // reproduction
                     if (this.energy > this.size * 15) {
                         this.energy *= 0.7;
@@ -246,7 +271,9 @@
                     }
 
                     if (this.energy <= 0 && !this.dead) {
-                        this.dead = true;
+                        this.dead = true; 
+                        totalDeaths++;
+
                         const stats = lineageStats.get(this.lineage);
                         if (stats) {
                             stats.alive--;
@@ -255,6 +282,7 @@
                             }
                             stats.maxGen = Math.max(stats.maxGen, this.generation);
                         }
+                     
                         if (this.size > 2) {
                             const numSplits = Math.floor(rand(1, 3));
                             const childSize = this.size / numSplits;
@@ -394,18 +422,36 @@
                 ctx.strokeStyle = "white";
                 ctx.strokeRect(x, y, w, h);
 
-                if (popHistory.length < 2) return;
-                const maxPop = Math.max(...popHistory);
+                const data = 
+                    graphMode === "population" ? popHistory : deathHistory;
+
+                if (data.length < 2) return;
+                const maxVal = Math.max(...data, 1);
+
+                ctx.strokeStyle =
+                    graphMode === "population"
+                    ? "white"
+                    : "rgba(255, 255, 255, 0.9)";
+
 
                 ctx.beginPath();
-                popHistory.forEach((p, i) => {
+                data.forEach((v, i) => {
                     const px = x + (i/(MAX_HISTORY - 1)) * w;
-                    const py = y + h - (p/maxPop) * h;
+                    const py = y + h - (v/maxVal) * h;
                     if (i === 0) ctx.moveTo(px, py);
                     else ctx.lineTo(px, py);
                 });
                 ctx.stroke();
+
+                ctx.fillStyle = "white";
+                ctx.font = "10px monospace";
+                ctx.fillText(
+                    graphMode === "population" ? "Population" : "Deaths",
+                    x + 10, 
+                    y + 15
+                );
             }
+
             const targets = {...params};
             mut.oninput = () => targets.mutation = +mut.value;
             meta.oninput = () => targets.metabolism = +meta.value;
@@ -416,7 +462,7 @@
                 params.mutation += (targets.mutation - params.mutation) * 0.1;
                 params.metabolism += (targets.metabolism - params.metabolism) * 0.1;
                 params.energyGain += (targets.energyGain - params.energyGain) * 0.1;
-                params.decay += (targets.decay - params.decay) * 0.01;
+                params.decay += (targets.decay - params.decay) * 0.002;
             }
 
             function step() {
@@ -426,17 +472,22 @@
                     organisms = organisms.filter(o => !o.dead);
                     frameCount++;
                 }
+                uiTimer += timeScale;
+                graphTimer += timeScale;
 
                 updateParams();
 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                if (frameCount % 10 === 0) {
+                if (graphTimer >= 10) {
                     popHistory.push(organisms.length);
+                    deathHistory.push(totalDeaths);
                     if (popHistory.length > MAX_HISTORY) popHistory.shift();
+                    if (deathHistory.length > MAX_HISTORY) deathHistory.shift()
+                    graphTimer = 0;
                 }
 
-                if (frameCount % 10 === 0) {
+                if (uiTimer >= 10) {
                     const s = computeStats(organisms);
                     ui.innerHTML = `
                         Population: ${organisms.length}<br>
@@ -444,12 +495,14 @@
                         Avg Speed: ${s.avgSpeed}<br>
                         Avg Activity: ${s.avgActivity}<br>
                         Predators: ${s.predatorRatio}%<br>
-                        Time Scale: x${timeScale}
+                        Time Scale: x${timeScale}<br>
+                        Deaths: ${totalDeaths}
                     `;
                     const dom = getDominantLineage();
                     if (dom) {
                         ui.innerHTML += `<br>Dominant Lineage: ${dom.id} (Gen ${dom.maxGen})`;
                     }
+                    uiTimer = 0;
                 }
                 for (const o of organisms) o.draw();
                 if (showGraph) drawGraph();
